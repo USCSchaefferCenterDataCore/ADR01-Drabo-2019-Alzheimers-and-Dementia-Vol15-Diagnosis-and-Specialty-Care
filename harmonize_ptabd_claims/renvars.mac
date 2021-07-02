@@ -1,0 +1,27 @@
+
+/* macro to rename variables from oldlist to newlist */
+%macro renvars(oldlist,newlist=,oldpre=,oldsuf=,newpre=,newsuf=);
+   
+   %if %length(&newlist)=0 %then %let newlist=&oldlist;
+   
+   %let v=1;
+   %let oldvar=%scan(&oldlist,&v);
+   %do %while (%length(&oldvar)>0);
+       
+       %if %length(%scan(&newlist,&v))=0 %then %do;
+           %put WARNING: old variable list is longer than new variable list.  Skipping renames from old var &oldvar on.;
+           %let oldvar=;
+       %end;
+       
+       %else %do;
+           
+           &oldpre&oldvar&oldsuf = &newpre%scan(&newlist,&v)&newsuf
+           
+           %let v=%eval(&v+1);
+           %let oldvar=%scan(&oldlist,&v);
+       %end;
+              
+   %end;
+   %if %length(%scan(&newlist,&v))>0 %then 
+       %put WARNING: new variable list is longer than old variable list.  Skipping renames from new var %scan(&newlist,&v) on.;
+%mend renvars;

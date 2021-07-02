@@ -1,0 +1,93 @@
+/* partDlib.mac
+   sets up libnames for each type of Part D file (pde, pln, prm, tie, srv, prs,pha, for
+   with no parameters this will set up libnames for all file types,
+   one for each type that concatenates folders for all years, including the 100files subdirs.
+   E.g.: libname pde will find pde claims files for all years 2006 to the max year available
+   as follows:
+   libname pde ( "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2006", 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2006/100files/" , 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2007", 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2007/100files/" , 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2008", 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2008/100files/" , 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2009", 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2009/100files/" , 
+                 "/disk/agedisk2/medicare.work/goldman-DUA21069/PartD/pde/2010" ) ;
+   The macro assumes that macro variables for duahome for the DUA home in which there 
+   is a symbolic link PartAB/ that points to the folder containing the raw claims data,
+   and for minyr and maxyr which give the first and last year of data available.
+   These are set in setupmac.sas in the duahome for 21069.
+   
+   The parameters byear= and eyear= can be used to set up libnames for a different range
+   of years.  The parameter types= can be changed to select types of claims for which 
+   libnames will be setup if libnames for all claim types are not desired.
+   
+   Example of use: %partDlib
+                   %partDlib(byear=2008,eyear=2008,types=pde pln)
+                   
+   August 2013, p.st.clair
+   August 2018, p. ferido
+   	Updated for DUA-51866
+   	Removed types prm, tie, srv, prs  & pha to adjsut for new Part D data structure
+*/
+%macro partDlib(byear=2006,eyear=&maxyr,types=pde pln for);
+%local year;
+%local startyr;
+%local nt;
+%local nxtyp;
+%local begpar;
+%local endpar;
+%local comma;
+
+%let skip=N;
+%if X&byear=X | X&eyear=X %then %do;
+    %if X&maxyr=X %then
+        %put WARNING - NO YEARS SPECIFIED. NO LIBNAMES WILL BE GENERATED. BYEAR=&byear EYEAR=&eyear  MAXYR=&maxyr ;
+        %put DID YOU SET A GLOBAL MACRO VARIABLE FOR MAXYR? See setupmac.sas in the DUA home ;
+        %let skip=Y;
+    %end;
+    %else %do;
+       %let byear=2006;
+       %let eyear=&maxyr;
+       %put WARNING - NO YEARS SPECIFIED. 2006 to MAX YEAR WILL BE USED.  BYEAR=&byear EYEAR=&maxyr ;
+    %end;
+    
+/*** Part D libnames ***/
+%let nt=1;
+%let nxtyp=%scan(&types,&nt);
+%let startyr=&byear;
+%if &skip=N %then %do %while (%length(&nxtyp)>0);
+    %if &nxtyp=for %then %let startyr=2010;
+ 
+    %if &startyr=&eyear %then %do;
+        %let begpar=;
+        %let endpar=;
+        %let comma=;
+    %end;
+    %else %do;
+        %let begpar=(;
+        %let endpar=);
+        %let comma=,;
+    %end;
+    libname &nxtyp &begpar
+
+    %do year=&startyr %to &eyear;
+
+        %if &year=&eyear %then %let comma=%str();
+ 				
+ 				%if "&nxtyp."="pde" %then %do;
+ 					"/disk/agedisk3/medicare.work/goldman-DUA51866/extracts/&nxtyp./20pct/&year./" &comma
+ 				%end;
+ 				%else %do;
+        	"/disk/agedisk3/medicare.work/goldman-DUA51866/extracts/&nxtyp./&year./" &comma
+				%end;
+				
+    %end;
+    
+    &endpar ; /* end of &nxtyp libname */
+    
+    %let nt=%eval(&nt+1);
+    %let nxtyp=%scan(&types,&nt);
+%end;
+/*** end of Part D libnames ***/
+%mend;

@@ -1,0 +1,86 @@
+/* xwalk0205.mac 
+   crosswalk ehic to bene_id for files from 2002-2005 that have ehic as the id,
+   i.e., the claims files 
+   Aug 2018 p.ferido
+   	Updated to DUA-51866
+   	Data paths changed to year specific crosswalk file
+   	Added sample percent macro variable which defaults to 20
+*/
+
+/* xwyr.mac
+   apply the crosswalk to map EHIC to BENE_ID for files from by to ey
+   rename old file to oldfile_wEHIC and the new file replaces the old.
+   fn = name of the file with EHICs, assumed to be fn[year]
+   by = beginning year
+   ey = end year
+   lib = file libname
+   aftyr = characters to be added to fn[year], e.g., aftyr=ri => fn[year]ri
+   renfn = if Y then rename input file as [fn][year][aftyr]_wEHIC and output as [fn][year][aftyr]
+           if not Y then output file is created as [fn][year][aftyr]_xw
+   contlist = if Y then runs a proc contents
+   contdir = specifies directory where contents folder should be saved
+   pct = specifies percent for crosswalk, defaults to 20 but can also choose 0001,01,05
+*/
+
+%macro xwyr(fn,by,ey,inlib=,outlib=,lib=,aftyr=,renfn=Y,contlist=Y,contdir=,pct=20);
+   %local year;
+   %local endf;
+   %if %length(&lib)>0 & %length(&inlib)=0 %then %let inlib=&lib;
+   %if %length(&lib)>0 & %length(&outlib)=0 %then %let outlib=&lib;
+   %if "&pct"="100" %then %do;
+   	%put WARNING - DO NOT HAVE AUTHORIZED ACCESS TO 100%, CHANGE TO 20 OR LESS;
+   	%abort;
+   %end;
+   
+   libname ex ("/disk/aging/medicare/data/&PCT.pct/bsf/2002/xw/",
+   "/disk/aging/medicare/data/&PCT.pct/bsf/2003/xw/",
+   "/disk/aging/medicare/data/&PCT.pct/bsf/2004/xw/",
+   "/disk/aging/medicare/data/&PCT.pct/bsf/2005/xw/");
+   
+   %if &by > 2005 | &ey > 2005 %then 
+       %put *** ERROR: begin and end years must be in 2002-2005. Was begin=&by and end=&ey;
+       
+   %else %do year = &by %to &ey;
+        title2 crosswalking &fn&year&aftyr EHIC to BENE_ID;
+        proc sql;
+          create table &outlib..&fn&year&aftyr._xw as
+            select a.*,b.bene_id,b.ehic as ehicxw,b.hic_mtch,b.dob_mtch, b.sex_mtch,
+                   (b.bene_id=" ") as noBene_ID
+	          from &inlib..&fn&year as a left join ex.ehicbenex_unique&year as b
+	          on a.ehic=b.ehic
+            order b.bene_id;
+
+        proc freq data=&outlib..&fn&year&aftyr._xw;
+            table noBene_ID hic_mtch dob_mtch sex_mtch /missing list;
+        run;
+        
+        %if %upcase(&renfn)=Y %then %do;
+            proc datasets lib=&inlib nowarn;
+               delete &fn&year&aftyr._wEHIC;
+               change &fn&year = &fn&year&aftyr._wEHIC
+                      ;
+            proc datasets lib=&outlib nowarn;
+               change &fn&year&aftyr._xw = &fn&year
+                      ;
+            %let endf=;
+        %end;
+        %else %let endf=_xw;
+        
+        %if %upcase(&contlist)=Y %then %do;
+            proc printto print="&contdir.&fn&year&aftyr&endf..contents.txt" new;
+            proc freq data=&outlib..&fn&year&aftyr&endf;
+               table noBene_ID hic_mtch dob_mtch sex_mtch /missing list;
+               run;
+            proc contents data=&outlib..&fn&year&aftyr&endf;
+               run;
+            proc means data=&outlib..&fn&year&aftyr&endf;
+            proc printto;
+               run;
+        %end;
+        %else %do;
+            proc freq data=&outlib..&fn&year&aftyr&endf;
+               table noBene_ID  hic_mtch dob_mtch sex_mtch /missing list;
+               run;
+        %end;
+    %end;  %*** do year=by to ey ***;
+%mend xwyr;

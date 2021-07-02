@@ -1,0 +1,88 @@
+/* partABlib.mac
+   sets up libnames for each type of Part AB claims and for den and bsf
+   with no parameters this will set up libnames for all claim types
+   one for each type that concatenates folders for all years.
+   E.g.: libname ip will find ip claims files for all years 2002 to the max year available
+   as follows:
+   libname ip ( "[duahome]/PartAB/ip/2002" , 
+                "[duahome]/PartAB/ip/2003" , 
+                "[duahome]/PartAB/ip/2004" , 
+                "[duahome]/PartAB/ip/2005" , 
+                "[duahome]/PartAB/ip/2006" , 
+                "[duahome]/PartAB/ip/2007" , 
+                "[duahome]/PartAB/ip/2008" , 
+                "[duahome]/PartAB/ip/2009" , 
+                "[duahome]/PartAB/ip/2010" );
+   The macro assumes that macro variables for duahome for the DUA home in which there 
+   is a symbolic link PartAB/ that points to the folder containing the raw claims data,
+   and for minyr and maxyr which give the first and last year of data available.
+   These are set in setupmac.sas in the duahome for 21069.
+   
+   The parameters byear= and eyear= can be used to set up libnames for a different range
+   of years.  The parameter types= can be changed to select types of claims for which 
+   libnames will be setup if libnames for all claim types are not desired.
+   
+   Example of use: %partABlib
+                   %partABlib(byear=2006,eyear=2008,types=den bsf)
+                   
+   August 2013, p.st.clair
+   August 2018, p.ferido 
+   	Updated for DUA-51866
+   	Updated to default to 20pct sample, but adds pct macro variable to allow for different sample sizes - 05, 01, 0001
+   	Denominator file no longer available & is removed from types
+*/
+
+%macro partABlib(byear=&&minyr,eyear=&&maxyr,types=ip op snf hha hos dme car med bsf,pct=20);
+
+%local year;
+%local nt;
+%local nxtyp;
+%local comma;
+%local skip;
+
+%let skip=N;
+%if X&byear=X | X&eyear=X %then %do;
+    %if X&minyr=X | X&maxyr=X %then %do;
+        %put WARNING - NO YEARS SPECIFIED. NO LIBNAMES WILL BE GENERATED. BYEAR=&byear EYEAR=&eyear MINYR=&minyr MAXYR=&maxyr ;
+        %put DID YOU SET GLOBAL MACRO VARIABLES FOR MINYR AND MAXYR? See setupmac.sas in the DUA home ;
+        %let skip=Y;
+    %end;
+    %else %do;
+       %let byear=&minyr;
+       %let eyear=&maxyr;
+       %put WARNING - NO YEARS SPECIFIED. MIN/MAX YEARS WILL BE USED.  BYEAR=&minyr EYEAR=&maxyr ;
+    %end;
+%end;
+%if &pct=100 %then %do;
+	%put WARNING - NOT AUTHORIZED ACCESS TO 100% FILES, CHANGE TO 20% OR SMALLER;
+	%abort;
+%end;
+
+/*** Part AB libnames ***/
+%let nt=1;
+%let nxtyp=%scan(&types,&nt);
+
+%if &skip=N %then %do %while (%length(&nxtyp)>0);
+
+   libname &nxtyp (
+
+    %let comma=,;
+    %do year=&byear %to &eyear;
+        %if &year=&eyear %then %let comma=%str();
+        
+        %if "&nxtyp."="med" | "&nxtyp."="bsf" %then %do;
+        	"/disk/aging/medicare/data/&PCT.pct/&nxtyp./&year./1" &comma
+        %end;
+        %else %do;
+        	"/disk/aging/medicare/data/&PCT.pct/&nxtyp./&year." &comma
+        %end;
+        
+    %end;
+    
+    );
+    %let nt=%eval(&nt+1);
+    %let nxtyp=%scan(&types,&nt);
+%end;
+/*** end of Part AB libnames ***/
+%mend;
+    

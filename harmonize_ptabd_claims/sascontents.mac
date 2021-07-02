@@ -1,0 +1,33 @@
+/* sascontents.mac
+   Macro to print the sas contents of a file to a separate
+   file called [fn].contents.txt in folder [contdir].
+   The libname of the file [lib] can also be specified.
+   
+   fn = name of the sas file. There is no default for [fn].
+   contdir = name of folder where contents are to be written.
+             must include / at end. defaults to the current directory
+   lib = libname for the file. defaults to WORK.
+   opt = proc contents options. defaults to position which lists
+         variables in both alphabetic and creation order
+   domeans = Y if want to run proc means, N if not. Default is N
+   example of use:
+   %sascontents(pde20_2006_1,lib=pde,contdir=PartDfiles/,opt=)
+   puts the sas contents listing of pde.pde20_2006_1 in
+   PartDfile/pde29_2006_1.contents.txt, just listing variables
+   in alphabetic order.
+   
+   August 2013, p.st.clair
+*/
+   
+%macro sascontents(fn,lib=work,contdir=,opt=position,domeans=N);
+   proc printto print="&contdir.&fn..contents.txt" new;
+   proc contents data=&lib..&fn &opt;
+   run;
+   %if %upcase(&domeans)=Y %then %do;
+       proc means data=&lib..&fn;
+       run;
+   %end;
+   proc printto;
+   run;
+%mend;
+
